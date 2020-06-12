@@ -1,3 +1,5 @@
+![image](https://user-images.githubusercontent.com/46954791/84489186-3f1eff00-acdc-11ea-911d-655bf1b5f1f8.png)
+
 # ECC608-MassProvisioning
 
 This configures ATECC608 secure chip from ESP32 and get a public key corresponding to slot 0 private key.  
