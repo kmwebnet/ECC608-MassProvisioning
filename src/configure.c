@@ -136,12 +136,18 @@ int atca_configure(uint8_t i2c_addr, ATCAIfaceCfg *cfg)
             printf("Unable to lock data zone: %x\r\n", status);
             goto exit;
         }
+    /* Generate new keys */
+        if (ATCA_SUCCESS != (status = atcab_genkey_base(GENKEY_MODE_PRIVATE, 0, NULL, pubkey)))
+        {
+            printf("Genkey on slot 0 failed: %x\r\n", status);
+            goto exit;
+        }
     }
 
-    /* Generate new keys */
-    if (ATCA_SUCCESS != (status = atcab_genkey_base(GENKEY_MODE_PRIVATE, 0, NULL, pubkey)))
+    /* get public keys */
+    if (ATCA_SUCCESS != (status = atcab_get_pubkey(0, pubkey)))
     {
-        printf("Genkey on slot 0 failed: %x\r\n", status);
+        printf("get_pubkey on slot 0 failed: %x\r\n", status);
         goto exit;
     }
     else
