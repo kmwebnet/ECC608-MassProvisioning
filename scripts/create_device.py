@@ -8,6 +8,9 @@ import cryptography
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives import serialization
+from pyasn1.codec.der import encoder,decoder
+from pyasn1_modules import rfc2459, rfc3279, rfc2314
+from pyasn1.type import univ
 
 
 def device_cert_sn(size, builder):
@@ -41,6 +44,38 @@ def device_cert_sn(size, builder):
     raw_sn[0] = raw_sn[0] & 0x7F # Force MSB bit to 0 to ensure positive integer
     raw_sn[0] = raw_sn[0] | 0x40 # Force next bit to 1 to ensure the integer won't be trimmed in ASN.1 DER encoding
     return int.from_bytes(raw_sn, byteorder='big', signed=False)
+
+
+def cert_sig_offset_length(cert):
+    cert_der = encoder.encode(cert)
+    
+    cert_info = der_value_offset_length(cert_der)
+    offset = cert_info['offset']
+
+    tbs_info = der_value_offset_length(cert_der[offset:])
+    offset += tbs_info['offset'] + tbs_info['length']
+
+    alg_info = der_value_offset_length(cert_der[offset:])
+    offset += alg_info['offset'] + alg_info['length']
+
+    sig_info = der_value_offset_length(cert_der[offset:])
+
+    return {'offset':offset, 'length':(sig_info['offset'] + sig_info['length'])}
+
+def der_value_offset_length(der):
+    """Returns the offset and length of the value part of the DER tag-length-value object."""
+    
+    tag_len = 1 # Assume 1 byte tag
+
+    if der[tag_len] < 0x80:
+        # Length is short-form, only 1 byte
+        len_len = 1
+        len = int(der[tag_len])
+    else:
+        # Length is long-form, lower 7 bits indicates how many additional bytes are required
+        len_len = (der[tag_len] & 0x7F) + 1
+        len = int().from_bytes(der[tag_len+1:tag_len+len_len], byteorder='big', signed=False)
+    return {'offset':tag_len+len_len, 'length':len}
 
 
 def create_device(device_file, device_key_file, signer_file, signer_key_file, root_file, root_key_file):
@@ -112,8 +147,13 @@ def create_device(device_file, device_key_file, signer_file, signer_key_file, ro
         x509.AuthorityKeyIdentifier.from_issuer_subject_key_identifier(issuer_ski),
         critical=False)
 
-    # Sign certificate 
-    device_cert = builder.sign(private_key=signer_ca_priv_key, algorithm=hashes.SHA256(), backend=be)
+    # Sign certificate with longest R & S pattern 
+    while True: 
+        device_cert = builder.sign(private_key=signer_ca_priv_key, algorithm=hashes.SHA256(), backend=be)
+        cert = decoder.decode(device_cert.public_bytes(encoding=serialization.Encoding.DER), asn1Spec=rfc2459.Certificate())[0]
+        info = cert_sig_offset_length(cert)
+        if info['length'] == 75:
+            break
 
     # Save certificate for reference
     print('    Save Device Certificate to %s' % device_file)
