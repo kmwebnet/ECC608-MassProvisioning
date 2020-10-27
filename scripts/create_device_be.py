@@ -111,7 +111,7 @@ def create_device(device_file, device_key_file, signer_file, signer_key_file, ro
 
     issuer_ski = signer_ca_cert.extensions.get_extension_for_class(x509.SubjectKeyIdentifier)
     builder = builder.add_extension(
-        x509.AuthorityKeyIdentifier.from_issuer_subject_key_identifier(issuer_ski),
+        x509.AuthorityKeyIdentifier.from_issuer_subject_key_identifier(issuer_ski.value),
         critical=False)
 
     # Sign certificate 
